@@ -129,10 +129,11 @@ def download_core(solr_url, core, dest, options):
     for file in files:
         download_file(solr_url, core, version, file, dest, options)
     keep = set([f['name'] for f in files])
-    for file in os.listdir(dest):
-        if file not in keep:
-            if options.verbose: print 'deleting', file
-            os.remove(os.path.join(dest, file))
+    if options.delete:
+        for file in os.listdir(dest):
+            if file not in keep:
+                if options.verbose: print 'deleting', file
+                os.remove(os.path.join(dest, file))
 
 def download_cores(solr_url, outdir, options):
     for core in options.cores or listcores(solr_url):
@@ -161,7 +162,7 @@ def main():
     parser = OptionParser(usage='Usage: %prog [options] solr_url outdir')
     parser.add_option("-C", "--cloud", action="store_true", dest="cloud", default=False, help="download all shards from a SolrCloud")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show progress")
-    parser.add_option("-d", "--delete", action="store_true", dest="verbose", default=False, help="expire old segments (use when updating an existing backup)")
+    parser.add_option("-d", "--delete", action="store_true", dest="delete", default=False, help="expire old segments (use when updating an existing backup)")
     parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
     parser.add_option("--no-checksum", action="store_true", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
     (options, args) = parser.parse_args()
