@@ -11,7 +11,7 @@ Download all the cores in Solr 4 instance:
 
     solrbackup.py http://localhost:8080/solr /tmp/mybackup
 
-Download every shard from a SolrCloud cluster:
+Download every shard from a SolrCloud cluster (this might be massive):
     
     solrbackup.py --cloud http://anynode:8080/solr /tmp/mybackup
 
@@ -21,4 +21,5 @@ TODO
 ----
 
 * Expire old segments
-* Try to get a more consistent snapshot by holding an commitpoint lock across multiple cores
+* Try to get a more consistent snapshot by holding a commitpoint lock across multiple cores from start
+* Option to download from cloud in parallel
