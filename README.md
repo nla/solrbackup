@@ -20,6 +20,7 @@ Run it again on the same directory to incrementally update.
 TODO
 ----
 
-* Expire old segments
 * Try to get a more consistent snapshot by holding a commitpoint lock across multiple cores from start
 * Option to download from cloud in parallel
+* Retry upon failure
+* Allow specifying a Zookeeper cluster rather than a URL for cloud downloads
