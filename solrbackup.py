@@ -1,9 +1,16 @@
 #!/usr/bin/env python
-
+#
+# Solr 4 remote backup tool
+#
+# URL: https://github.com/nla/solrbackup
+# Author: Alex Osborne <aosborne@nla.gov.au>
+# License: MIT
+#
 import json, time, os, struct, zlib, sys, errno
 from urllib import urlencode
 from urllib2 import urlopen
 from contextlib import closing
+from optparse import OptionParser
 
 def getjson(url):
     f = urlopen(url)
@@ -98,58 +105,77 @@ def nicesize(bytes):
     if bytes < 1024 * 1024 * 1024: return '%.2fM' % (bytes / 1024.0 / 1024.0)
     return '%.2fG' % (bytes / 1024.0 / 1024.0 / 1024.0)
 
-def download_file(solr_url, core, version, file, destdir, use_checksum=True):
+def download_file(solr_url, core, version, file, destdir, options):
     dest = os.path.join(destdir, file['name'])
     if is_complete(dest, file['size']):
-        print 'already got', file['name'], 'skipping'
+        if options.verbose:
+            print 'already got', file['name']
         return
-    print 'fetching', file['name']
+    if options.verbose:
+        print 'fetching', file['name']
     with open(dest, 'a+b') as out:
         out.seek(0, 2)
         offset = out.tell()
-        with closing(filestream(solr_url, core, version, file, offset, use_checksum=use_checksum)) as stream:
+        with closing(filestream(solr_url, core, version, file, offset, use_checksum=options.use_checksum)) as stream:
             for packet in stream:
                 out.write(packet)
-                print file['name'], nicesize(out.tell()), '/', nicesize(file['size']), '%.2f%%' % (100.0 * out.tell() / file['size'])
+                if options.verbose:
+                    print core, file['name'], nicesize(out.tell()), '/', nicesize(file['size']), '%.2f%%' % (100.0 * out.tell() / file['size'])
 
-def download_cores(solr_url, outdir):
-    for core in listcores(solr_url):
-        version = indexversion(solr_url, core)
+def download_core(solr_url, core, dest, options):
+    version = indexversion(solr_url, core)
+    files = filelist(solr_url, core, version)
+    mkdir_p(dest)
+    for file in files:
+        download_file(solr_url, core, version, file, dest, options)
+    keep = set([f['name'] for f in files])
+    for file in os.listdir(dest):
+        if file not in keep:
+            if options.verbose: print 'deleting', file
+            os.remove(os.path.join(dest, file))
+
+def download_cores(solr_url, outdir, options):
+    for core in options.cores or listcores(solr_url):
         dest = os.path.join(outdir, core)
-        mkdir_p(dest)
-        for file in filelist(solr_url, core, version):
-            download_file(solr_url, core, version, file, dest)
+        download_core(solr_url, core, dest, options)
 
-def download_cloud(solr_url, outdir):
+def find_leader(replicas):
+    for replica in replicas:
+        if r.get('leader') == 'true':
+            return replica
+    return None
+
+def download_cloud(solr_url, outdir, options):
     collections = clusterstate(solr_url)
-    print collections
     for colname, coldata in collections.iteritems():
         for shardname, sharddata in coldata['shards'].iteritems():
-            replica = sharddata['replicas'].values()[0]
+            replica = find_leader(sharddata['replicas'].values())
+            if replica is None:
+                raise 'no leader for shard ' + shardname + ' in ' + colname
             shard_url = replica['base_url']
             core = replica['core']
-            version = indexversion(shard_url, core)
             dest = os.path.join(outdir, colname, shardname)
-            mkdir_p(dest)
-            for file in filelist(shard_url, core, version):
-                download_file(shard_url, core, version, file, dest)
+            download_core(solr_url, core, dest, options)
 
 def main():
-    cloudmode = False
-    if '--cloud' in sys.argv:
-        cloudmode = True
-        sys.argv.remove('--cloud')
+    parser = OptionParser(usage='Usage: %prog [options] solr_url outdir')
+    parser.add_option("-C", "--cloud", action="store_true", dest="cloud", default=False, help="download all shards from a SolrCloud")
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show progress")
+    parser.add_option("-d", "--delete", action="store_true", dest="verbose", default=False, help="expire old segments (use when updating an existing backup)")
+    parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
+    parser.add_option("--no-checksum", action="store_true", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
+    (options, args) = parser.parse_args()
 
-    if len(sys.argv) < 3:
-        print 'Usage:', sys.argv[0], '[--cloud] solr_url outdir'
+    if len(args) < 2:
+        parser.print_help()
         sys.exit(1)
 
-    solr_url = sys.argv[1].rstrip('/')
-    outdir = sys.argv[2]
+    solr_url = args[0].rstrip('/')
+    outdir = args[1]
 
-    if cloudmode:
-        download_cloud(solr_url, outdir)
+    if options.cloud:
+        download_cloud(solr_url, outdir, options)
     else:
-        download_cores(solr_url, outdir)
+        download_cores(solr_url, outdir, options)
 
 if __name__ == '__main__': main()
