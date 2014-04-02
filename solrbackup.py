@@ -142,7 +142,7 @@ def download_cores(solr_url, outdir, options):
 
 def find_leader(replicas):
     for replica in replicas:
-        if r.get('leader') == 'true':
+        if replica.get('leader') == 'true':
             return replica
     return None
 
