@@ -156,7 +156,7 @@ def download_cloud(solr_url, outdir, options):
             shard_url = replica['base_url']
             core = replica['core']
             dest = os.path.join(outdir, colname, shardname)
-            download_core(solr_url, core, dest, options)
+            download_core(shard_url, core, dest, options)
 
 def main():
     parser = OptionParser(usage='Usage: %prog [options] solr_url outdir')
