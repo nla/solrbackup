@@ -123,7 +123,7 @@ def download_file(solr_url, core, version, file, destdir, options):
                     print core, file['name'], nicesize(out.tell()), '/', nicesize(file['size']), '%.2f%%' % (100.0 * out.tell() / file['size'])
 
 class IndexSnapshot(object):
-    interval = 1
+    interval = 5
     def __init__(self, solr_url, core, dest, options):
         self.solr_url = solr_url
         self.core = core
