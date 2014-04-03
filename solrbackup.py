@@ -197,8 +197,9 @@ def download_cloud(solr_url, outdir, options):
                 raise 'no leader for shard ' + shardname + ' in ' + colname
             shard_url = replica['base_url']
             core = replica['core']
+            dest = os.path.join(outdir, colname, shardname)
             snapshots.append(IndexSnapshot(shard_url, core, dest, options))
-    download_snapshots(snapshots)
+    download_snapshots(snapshots, options)
 
 def main():
     parser = OptionParser(usage='Usage: %prog [options] solr_url outdir')
