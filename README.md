@@ -17,10 +17,25 @@ Download every shard from a SolrCloud cluster (this might be massive):
 
 Run it again on the same directory to incrementally update.
 
+Getting a consistent snapshot
+-----------------------------
+
+Solrbackup uses the Solr replication protocol to get a consistent snapshot
+of a particular core.  However there's no guarantee that data is consistent across 
+multple cores or shards. If you pass the --reserve option solrbackup will try to snapshot 
+each core at close to the same time, rather than waiting for the previous download
+to finish.
+
+This is still approximate however.  For a fully consistent backup you'll need to
+pause indexing (in your client applications), send a hard commit, start solrbackup
+with the --reserve option and then resume indexing (you dont have to wait for the
+backup to finish).  It's a good idea to trigger backups of any other application state
+that you need the index to be consistent with (such as an SQL database) during the
+same window.
+
 TODO
 ----
 
-* Try to get a snapshot that's consistent across multiple cores by holding a commitpoint lock on every core (keep polling listfiles maybe)
 * Option to download from cloud in parallel
 * Retry upon failure
 * Allow specifying a Zookeeper cluster rather than a URL for cloud downloads
