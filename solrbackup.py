@@ -139,11 +139,13 @@ class IndexSnapshot(object):
         def renew():
             if self.reserving:
                 if self.options.verbose:
-                    print 'Renewing reservation of', self.solr_url, self.core, self.version
+                    print 'Renewing reservation of ' + self.solr_url + ' ' + self.core + ' ' + repr(self.version)
                 filelist(self.solr_url, self.core, self.version)
                 self.timer = threading.Timer(self.interval, renew)
+                self.timer.daemon = True
                 self.timer.start()
         self.timer = threading.Timer(self.interval, renew)
+        self.timer.daemon = True
         self.timer.start()
         return self
 
