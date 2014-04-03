@@ -210,7 +210,7 @@ def main():
     parser.add_option("-d", "--delete", action="store_true", dest="delete", default=False, help="expire old segments (use when updating an existing backup)")
     parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
     parser.add_option("--no-checksum", action="store_false", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
-    parser.add_option("-r", "--reserve", action="store_true", dest="reserve", default=False, help="use background polling to reserve index versions for a more consistent snapshot")
+    parser.add_option("-r", "--reserve", action="store_true", dest="reserve", default=False, help="use background polling to reserve index versions for a more consistent snapshot across multiple cores")
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
