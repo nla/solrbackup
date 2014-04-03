@@ -6,7 +6,7 @@
 # Author: Alex Osborne <aosborne@nla.gov.au>
 # License: MIT
 #
-import json, time, os, struct, zlib, sys, errno
+import json, time, os, struct, zlib, sys, errno, threading
 from urllib import urlencode
 from urllib2 import urlopen
 from contextlib import closing
@@ -122,23 +122,64 @@ def download_file(solr_url, core, version, file, destdir, options):
                 if options.verbose:
                     print core, file['name'], nicesize(out.tell()), '/', nicesize(file['size']), '%.2f%%' % (100.0 * out.tell() / file['size'])
 
-def download_core(solr_url, core, dest, options):
-    version = indexversion(solr_url, core)
-    files = filelist(solr_url, core, version)
-    mkdir_p(dest)
-    for file in files:
-        download_file(solr_url, core, version, file, dest, options)
-    keep = set([f['name'] for f in files])
-    if options.delete:
-        for file in os.listdir(dest):
-            if file not in keep:
-                if options.verbose: print 'deleting', file
-                os.remove(os.path.join(dest, file))
+class IndexSnapshot(object):
+    interval = 1
+    def __init__(self, solr_url, core, dest, options):
+        self.solr_url = solr_url
+        self.core = core
+        self.reserving = False
+        self.version = None
+        self.dest = dest
+        self.timer = None
+        self.options = options
+
+    def reserve(self):
+        self.version = indexversion(self.solr_url, self.core)
+        self.reserving = True
+        def renew():
+            if self.reserving:
+                if self.options.verbose:
+                    print 'Renewing reservation of', self.solr_url, self.core, self.version
+                filelist(self.solr_url, self.core, self.version)
+                self.timer = threading.Timer(self.interval, renew)
+                self.timer.start()
+        self.timer = threading.Timer(self.interval, renew)
+        self.timer.start()
+        return self
+
+    def release(self):
+        self.reserving = False
+        if self.timer: self.timer.cancel()
+    
+    def download(self, options):
+        version = self.version or indexversion(self.solr_url, self.core)
+        files = filelist(self.solr_url, self.core, version)
+        mkdir_p(self.dest)
+        for file in files:
+            download_file(self.solr_url, self.core, version, file, self.dest, options)
+        keep = set([f['name'] for f in files])
+        if options.delete:
+            for file in os.listdir(self.dest):
+                if file not in keep:
+                    if options.verbose: print 'deleting', file
+                    os.remove(os.path.join(self.dest, file))
+
+def download_snapshots(snapshots, options):
+    try:
+        if options.reserve:
+            for snapshot in snapshots:
+                snapshot.reserve()
+        for snapshot in snapshots:
+            snapshot.download(options)
+            snapshot.release()
+    finally:
+        for snapshot in snapshots:
+            snapshot.release()
 
 def download_cores(solr_url, outdir, options):
-    for core in options.cores or listcores(solr_url):
-        dest = os.path.join(outdir, core)
-        download_core(solr_url, core, dest, options)
+    cores = options.cores or listcores(solr_url)
+    snapshots = [IndexSnapshot(solr_url, core, os.path.join(outdir, core), options) for core in cores]
+    download_snapshots(snapshots, options)
 
 def find_leader(replicas):
     for replica in replicas:
@@ -147,6 +188,7 @@ def find_leader(replicas):
     return None
 
 def download_cloud(solr_url, outdir, options):
+    snapshots  = []
     collections = clusterstate(solr_url)
     for colname, coldata in collections.iteritems():
         for shardname, sharddata in coldata['shards'].iteritems():
@@ -155,8 +197,8 @@ def download_cloud(solr_url, outdir, options):
                 raise 'no leader for shard ' + shardname + ' in ' + colname
             shard_url = replica['base_url']
             core = replica['core']
-            dest = os.path.join(outdir, colname, shardname)
-            download_core(shard_url, core, dest, options)
+            snapshots.append(IndexSnapshot(shard_url, core, dest, options))
+    download_snapshots(snapshots)
 
 def main():
     parser = OptionParser(usage='Usage: %prog [options] solr_url outdir')
@@ -165,6 +207,7 @@ def main():
     parser.add_option("-d", "--delete", action="store_true", dest="delete", default=False, help="expire old segments (use when updating an existing backup)")
     parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
     parser.add_option("--no-checksum", action="store_false", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
+    parser.add_option("-r", "--reserve", action="store_true", dest="reserve", default=False, help="use background polling to reserve index versions for a more consistent snapshot")
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
