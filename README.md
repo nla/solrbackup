@@ -28,8 +28,8 @@ to finish.
 
 This is still approximate however.  For a fully consistent backup you'll need to
 pause indexing (in your client applications), send a hard commit, start solrbackup
-with the --reserve option and then resume indexing (you dont have to wait for it
-to finish).  It's a good idea to trigger backups of any other application state
+with the --reserve option and then resume indexing (you dont have to wait for the
+backup to finish).  It's a good idea to trigger backups of any other application state
 that you need the index to be consistent with (such as an SQL database) during the
 same window.
 
