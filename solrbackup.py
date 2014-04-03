@@ -164,7 +164,7 @@ def main():
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show progress")
     parser.add_option("-d", "--delete", action="store_true", dest="delete", default=False, help="expire old segments (use when updating an existing backup)")
     parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
-    parser.add_option("--no-checksum", action="store_true", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
+    parser.add_option("--no-checksum", action="store_false", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
