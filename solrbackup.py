@@ -46,7 +46,7 @@ class FileStream(object):
         if buf:
             return struct.unpack(fmt, buf)
         else:
-            return None
+            return (None,)
 
     def next(self):
         size, = self.unpack('>i')
