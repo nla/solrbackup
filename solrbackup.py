@@ -92,7 +92,7 @@ def mkdir_p(path):
 
 def is_complete(path, expected_size):
     try:
-        return os.path.getsize(path) >= expected_size
+        return os.path.getsize(path) == expected_size
     except OSError as e:
         if e.errno == errno.ENOENT:
             return False
@@ -152,7 +152,7 @@ class IndexSnapshot(object):
     def release(self):
         self.reserving = False
         if self.timer: self.timer.cancel()
-    
+
     def download(self, options):
         version = self.version or indexversion(self.solr_url, self.core)
         files = filelist(self.solr_url, self.core, version)
@@ -183,18 +183,28 @@ def download_cores(solr_url, outdir, options):
     snapshots = [IndexSnapshot(solr_url, core, os.path.join(outdir, core), options) for core in cores]
     download_snapshots(snapshots, options)
 
+def find_replica(replicas, options):
+    if options.consistant:
+        return find_lowest_replica(replicas)
+    else:
+        return find_leader(replicas)
+
 def find_leader(replicas):
     for replica in replicas:
         if replica.get('leader') == 'true':
             return replica
     return None
 
+def find_lowest_replica(replicas):
+    sorted_replicas = sorted(replicas, key=lambda k: k['core'])
+    return sorted_replicas[0]
+
 def download_cloud(solr_url, outdir, options):
     snapshots  = []
     collections = clusterstate(solr_url)
     for colname, coldata in collections.iteritems():
         for shardname, sharddata in coldata['shards'].iteritems():
-            replica = find_leader(sharddata['replicas'].values())
+            replica = find_replica(sharddata['replicas'].values(), options)
             if replica is None:
                 raise 'no leader for shard ' + shardname + ' in ' + colname
             shard_url = replica['base_url']
@@ -211,6 +221,7 @@ def main():
     parser.add_option("--core", action="append", dest="cores", help="core to download (can be specified multiple times, default is all)")
     parser.add_option("--no-checksum", action="store_false", dest="use_checksum", default=True, help="don't verify adler32 checksums while downloading")
     parser.add_option("-r", "--reserve", action="store_true", dest="reserve", default=False, help="use background polling to reserve index versions for a more consistent snapshot across multiple cores")
+    parser.add_option("--consistant", action="store_true", dest="consistant", default=False, help="Use the lowest named replica, to attempt to backup a core consistantly")
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
